@@ -41,6 +41,8 @@ if (isset($pid)) {
 
                 $last_msg = null;
                 $block_reason = null;
+                $last_create = null;
+                $reader_count = null;
 
                 // friends_block 상태 확인
                 foreach ($participants_array as $participant_pid) {
@@ -63,11 +65,11 @@ if (isset($pid)) {
                             error_log("Participant $participant_pid is blocked. Reason: $block_reason");
 
                             // block_reason보다 이전인 메시지 중 가장 나중에 작성된 메시지 가져오기
-                            $sql_msg = "SELECT msg FROM Chatting WHERE room_pid = ? AND `create` < ? ORDER BY `create` DESC LIMIT 1";
+                            $sql_msg = "SELECT msg, 'create' FROM Chatting WHERE room_pid = ? AND `create` < ? ORDER BY `create` DESC LIMIT 1";
                             $stmt_msg = $conn->prepare($sql_msg);
-                            $stmt_msg->bind_param("ss", $chatroom_pid, $block_reason);
+                            $stmt_msg->bind_param("sss", $chatroom_pid, $pid_json, $chatroom_pid);
                             $stmt_msg->execute();
-                            $stmt_msg->bind_result($last_msg);
+                            $stmt_msg->bind_result($last_msg, $last_create, $reader_count);
                             if (!$stmt_msg->fetch()) {
                                 error_log("No message found with the given criteria.");
                             }
@@ -79,11 +81,12 @@ if (isset($pid)) {
 
                 // 블록되지 않은 경우, 최신 메시지를 가져옴
                 if ($block_reason === null) {
-                    $sql_msg = "SELECT msg FROM Chatting WHERE room_pid = ? ORDER BY `create` DESC LIMIT 1";
+                    // 'create'를 작은따옴표로 묶지 않음
+                    $sql_msg = "SELECT msg, `create` ,(SELECT COUNT(*) FROM Chatting WHERE room_pid = ? AND JSON_CONTAINS(reader, ?)) AS reader_count FROM Chatting WHERE room_pid = ? ORDER BY `create` DESC LIMIT 1";
                     $stmt_msg = $conn->prepare($sql_msg);
-                    $stmt_msg->bind_param("s", $chatroom_pid);
+                    $stmt_msg->bind_param("sss", $chatroom_pid, $pid_json, $chatroom_pid);
                     $stmt_msg->execute();
-                    $stmt_msg->bind_result($last_msg);
+                    $stmt_msg->bind_result($last_msg, $last_create, $reader_count);
                     if (!$stmt_msg->fetch()) {
                         error_log("No latest message found for room_pid: $chatroom_pid");
                     }
@@ -95,8 +98,9 @@ if (isset($pid)) {
                     "pid" => $chatroom_pid,
                     "roomname" => $roomname,
                     "Participants" => $Participants,
-                    "create" => $create,
+                    "create" => $last_create,
                     "state" => $state,
+                    "count" => $reader_count,
                     "last_msg" => $last_msg
                 );
                 $rooms[] = $chatroom_info;

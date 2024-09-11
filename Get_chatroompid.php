@@ -34,9 +34,11 @@ if (isset($pid) && isset($friend_pids)) {
         // 최종 응답 배열 초기화
         $response = array();
 
-        // 친구 이름을 저장할 배열
-        $names = array();
+        
+        $roomname = array();
 
+        // 친구 이름을 저장할 배열
+        
         $all_pids = array_merge([$pid], $friend_pids);
 
         // 각 friend_pid에 대해 루프 돌기
@@ -51,7 +53,8 @@ if (isset($pid) && isset($friend_pids)) {
             $stmt->close();
 
             // 이름을 배열에 추가
-            $names[] = $friend_name;
+            $roomname[] = $friend_name;
+        
         }
 
         $sql = "SELECT pid FROM ChattingRoom 
@@ -92,7 +95,7 @@ if (isset($pid) && isset($friend_pids)) {
         
 
         // 이름들을 콤마로 구분하여 하나의 문자열로 합치기
-        $response["name"] = implode(", ", $names);
+        $response["roomname"] = implode(", ", $roomname);
 
     } catch (Exception $e) {
         $response = array("success" => false, "message" => "Error: " . $e->getMessage());
