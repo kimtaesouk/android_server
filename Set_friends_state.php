@@ -43,6 +43,9 @@ if ($state == 'isHide') {
     }
     // friends_array에서 f_pid 제거
     $friends_array = array_diff($friends_array, [$f_pid]);
+
+    // friends_hide_array에서 f_pid 제거
+    $friends_hide_array = array_diff($friends_hide_array, [$f_pid]);
 }
  elseif ($state == 'unblock') {
     // state가 'unblock'인 경우

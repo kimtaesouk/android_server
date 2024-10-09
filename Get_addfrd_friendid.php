@@ -70,6 +70,24 @@ if (isset($id) && isset($my_pid)) {
                         $response["friend"] = "notfriend";
                     }
 
+                    // ChattingRoom에서 pid를 가져오는 쿼리 (JOIN 사용하지 않음)
+                    $sql = "SELECT pid FROM ChattingRoom
+                            WHERE JSON_CONTAINS(Participants, JSON_QUOTE(CAST(? AS CHAR)))
+                            AND JSON_CONTAINS(Participants, JSON_QUOTE(CAST(? AS CHAR)))
+                            AND JSON_LENGTH(Participants) = 2";
+                    $stmt = $conn->prepare($sql);
+                    $stmt->bind_param("ss", $my_pid, $f_pid);
+                    $stmt->execute();
+                    $stmt->store_result();
+                    $stmt->bind_result($room_pid);
+                    $stmt->fetch();
+
+                    if ($stmt->num_rows == 1) {
+                        $response["room_pid"] = $room_pid; // 방 pid 추가
+                    } else {
+                        $response["room_pid"] = null; // 방이 없는 경우
+                    }
+
                     // 공통 정보 추가
                     $response["name"] = $name;
                     $response["pf_im"] = $pf_im;

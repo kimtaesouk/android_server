@@ -65,9 +65,18 @@ if (isset($pid)) {
                             error_log("Participant $participant_pid is blocked. Reason: $block_reason");
 
                             // block_reason보다 이전인 메시지 중 가장 나중에 작성된 메시지 가져오기
-                            $sql_msg = "SELECT msg, 'create' FROM Chatting WHERE room_pid = ? AND `create` < ? ORDER BY `create` DESC LIMIT 1";
+                            $sql_msg = "SELECT msg, `create`, 
+                                        (SELECT COUNT(*) FROM Chatting 
+                                        WHERE room_pid = ? 
+                                        AND JSON_CONTAINS(reader, ?) 
+                                        AND JSON_CONTAINS(recipient_pid, ?)) AS reader_count 
+                                        FROM Chatting 
+                                        WHERE room_pid = ? 
+                                        AND JSON_CONTAINS(recipient_pid, ?)  
+                                        ORDER BY `create` DESC LIMIT 1";
                             $stmt_msg = $conn->prepare($sql_msg);
-                            $stmt_msg->bind_param("sss", $chatroom_pid, $pid_json, $chatroom_pid);
+                            $escaped_pid = json_encode($pid);  // $pid를 JSON 형식으로 인코딩
+                            $stmt_msg->bind_param("sssss", $chatroom_pid, $pid_json, $escaped_pid, $chatroom_pid, $escaped_pid);
                             $stmt_msg->execute();
                             $stmt_msg->bind_result($last_msg, $last_create, $reader_count);
                             if (!$stmt_msg->fetch()) {
@@ -81,10 +90,23 @@ if (isset($pid)) {
 
                 // 블록되지 않은 경우, 최신 메시지를 가져옴
                 if ($block_reason === null) {
-                    // 'create'를 작은따옴표로 묶지 않음
-                    $sql_msg = "SELECT msg, `create` ,(SELECT COUNT(*) FROM Chatting WHERE room_pid = ? AND JSON_CONTAINS(reader, ?)) AS reader_count FROM Chatting WHERE room_pid = ? ORDER BY `create` DESC LIMIT 1";
+                    // 'pid'를 JSON 배열에서 찾는 방식 수정
+                    $sql_msg = "SELECT msg, `create`, 
+                                (SELECT COUNT(*) FROM Chatting 
+                                WHERE room_pid = ? 
+                                AND JSON_CONTAINS(reader, ?) 
+                                AND JSON_CONTAINS(recipient_pid, ?)) AS reader_count 
+                                FROM Chatting 
+                                WHERE room_pid = ? 
+                                AND JSON_CONTAINS(recipient_pid, ?)  
+                                ORDER BY `create` DESC LIMIT 1";
+
                     $stmt_msg = $conn->prepare($sql_msg);
-                    $stmt_msg->bind_param("sss", $chatroom_pid, $pid_json, $chatroom_pid);
+
+                    // JSON 형식에 맞게 pid 값을 처리 (이스케이프된 pid)
+                    $escaped_pid = json_encode($pid);  // $pid를 JSON 형식으로 인코딩
+
+                    $stmt_msg->bind_param("sssss", $chatroom_pid, $pid_json, $escaped_pid, $chatroom_pid, $escaped_pid);
                     $stmt_msg->execute();
                     $stmt_msg->bind_result($last_msg, $last_create, $reader_count);
                     if (!$stmt_msg->fetch()) {
