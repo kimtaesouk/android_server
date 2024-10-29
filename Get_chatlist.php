@@ -25,7 +25,7 @@ if (isset($room_pid) && !empty($room_pid)) {
         $my_pid_json = json_encode($my_pid);
 
         // 채팅방 세부 정보를 가져오는 SQL 쿼리 준비 (image_path 필드를 추가)
-        $sql = $sql = "SELECT pid, room_pid, sender_pid, msg, image_path, `create`, reader, status 
+        $sql = "SELECT pid, room_pid, sender_pid, msg, image_path, `create`, reader, status 
         FROM (
             SELECT * 
             FROM Chatting 

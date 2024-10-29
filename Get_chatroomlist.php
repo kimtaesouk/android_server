@@ -10,13 +10,12 @@ if (isset($pid)) {
     try {
         $sql = "SELECT pid, roomname, Participants, `create`, status 
                 FROM ChattingRoom 
-                WHERE JSON_CONTAINS(Participants, ?)";
-        
+                WHERE JSON_CONTAINS(Participants, JSON_QUOTE(?)) 
+                AND (Exiter IS NULL OR NOT JSON_CONTAINS(Exiter, JSON_QUOTE(?)))";
         $stmt = $conn->prepare($sql);
 
         // JSON 형식으로 변환된 pid를 바인딩
-        $pid_json = json_encode($pid);
-        $stmt->bind_param("s", $pid_json);
+        $stmt->bind_param("ss", $pid, $pid);
         $stmt->execute();
         $stmt->store_result();
 
@@ -68,19 +67,21 @@ if (isset($pid)) {
                             $sql_msg = "SELECT msg, `create`, 
                                         (SELECT COUNT(*) FROM Chatting 
                                         WHERE room_pid = ? 
-                                        AND JSON_CONTAINS(reader, ?) 
-                                        AND JSON_CONTAINS(recipient_pid, ?)) AS reader_count 
+                                        AND JSON_CONTAINS(reader, JSON_QUOTE(?)) 
+                                        AND JSON_CONTAINS(recipient_pid, JSON_QUOTE(?))) AS reader_count 
                                         FROM Chatting 
                                         WHERE room_pid = ? 
-                                        AND JSON_CONTAINS(recipient_pid, ?)  
                                         ORDER BY `create` DESC LIMIT 1";
                             $stmt_msg = $conn->prepare($sql_msg);
+
+                            // JSON 형식에 맞게 pid 값을 처리 (이스케이프된 pid)
                             $escaped_pid = json_encode($pid);  // $pid를 JSON 형식으로 인코딩
-                            $stmt_msg->bind_param("sssss", $chatroom_pid, $pid_json, $escaped_pid, $chatroom_pid, $escaped_pid);
+
+                            $stmt_msg->bind_param("ssss", $chatroom_pid, $pid, $pid, $chatroom_pid);
                             $stmt_msg->execute();
                             $stmt_msg->bind_result($last_msg, $last_create, $reader_count);
                             if (!$stmt_msg->fetch()) {
-                                error_log("No message found with the given criteria.");
+                                error_log("No latest message found for room_pid: $chatroom_pid");
                             }
                             $stmt_msg->close();
                             break; // 해당 participant_pid에 대해 블록된 메시지를 찾았으므로 루프 탈출
@@ -92,28 +93,29 @@ if (isset($pid)) {
                 if ($block_reason === null) {
                     // 'pid'를 JSON 배열에서 찾는 방식 수정
                     $sql_msg = "SELECT msg, `create`, 
-                                (SELECT COUNT(*) FROM Chatting 
-                                WHERE room_pid = ? 
-                                AND JSON_CONTAINS(reader, ?) 
-                                AND JSON_CONTAINS(recipient_pid, ?)) AS reader_count 
-                                FROM Chatting 
-                                WHERE room_pid = ? 
-                                AND JSON_CONTAINS(recipient_pid, ?)  
-                                ORDER BY `create` DESC LIMIT 1";
+                                        (SELECT COUNT(*) FROM Chatting 
+                                        WHERE room_pid = ? 
+                                        AND JSON_CONTAINS(reader, JSON_QUOTE(?)) 
+                                        AND JSON_CONTAINS(recipient_pid, JSON_QUOTE(?))) AS reader_count 
+                                        FROM Chatting 
+                                        WHERE room_pid = ? 
+                                        ORDER BY `create` DESC LIMIT 1";
+                            $stmt_msg = $conn->prepare($sql_msg);
 
-                    $stmt_msg = $conn->prepare($sql_msg);
+                            // JSON 형식에 맞게 pid 값을 처리 (이스케이프된 pid)
+                            $escaped_pid = json_encode($pid);  // $pid를 JSON 형식으로 인코딩
 
-                    // JSON 형식에 맞게 pid 값을 처리 (이스케이프된 pid)
-                    $escaped_pid = json_encode($pid);  // $pid를 JSON 형식으로 인코딩
-
-                    $stmt_msg->bind_param("sssss", $chatroom_pid, $pid_json, $escaped_pid, $chatroom_pid, $escaped_pid);
-                    $stmt_msg->execute();
-                    $stmt_msg->bind_result($last_msg, $last_create, $reader_count);
-                    if (!$stmt_msg->fetch()) {
-                        error_log("No latest message found for room_pid: $chatroom_pid");
-                    }
-                    $stmt_msg->close();
+                            $stmt_msg->bind_param("ssss", $chatroom_pid, $pid, $pid, $chatroom_pid);
+                            $stmt_msg->execute();
+                            $stmt_msg->bind_result($last_msg, $last_create, $reader_count);
+                            if (!$stmt_msg->fetch()) {
+                                error_log("No latest message found for room_pid: $chatroom_pid");
+                            }
+                            $stmt_msg->close();
                 }
+                // if ($reader_count === null) {
+                //     $reader_count = 0;
+                // }
 
                 // 채팅방 정보와 마지막 메시지 추가
                 $chatroom_info = array(
